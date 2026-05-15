@@ -120,7 +120,8 @@ const PORTFOLIO = [
 ];
 
 const REFRESH_MS = 60_000;
-let PROXY_URL = localStorage.getItem('yahoo_proxy_url') || '';
+const HARDCODED_PROXY_URL = 'https://finance-proxy.rmaffaires.workers.dev';
+let PROXY_URL = HARDCODED_PROXY_URL || localStorage.getItem('yahoo_proxy_url') || '';
 
 function saveProxy() {
   let v = document.getElementById('proxy-input').value.trim();
