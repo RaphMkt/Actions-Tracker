@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Portfolio Live Dashboard</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --card: #161b22;
+    --card-hover: #1c2330;
+    --border: #30363d;
+    --text: #e6edf3;
+    --text-dim: #8b949e;
+    --green: #3fb950;
+    --red: #f85149;
+    --amber: #d29922;
+    --blue: #58a6ff;
+    --accent: #f0883e;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, sans-serif;
+    background: var(--bg); color: var(--text); padding: 24px; font-size: 14px;
+  }
+  header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--border);
+    flex-wrap: wrap; gap: 12px;
+  }
+  h1 { font-size: 22px; font-weight: 600; }
+  .meta { color: var(--text-dim); font-size: 12px; }
+  .meta .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--green); margin-right: 6px; animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 16px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 16px; transition: background 0.2s; }
+  .card:hover { background: var(--card-hover); }
+  .card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; gap: 8px; }
+  .ticker-name { font-weight: 600; font-size: 15px; }
+  .ticker-symbol { color: var(--text-dim); font-size: 12px; margin-top: 2px; }
+  .price { font-size: 18px; font-weight: 600; text-align: right; }
+  .change { font-size: 12px; text-align: right; margin-top: 2px; }
+  .change.up { color: var(--green); }
+  .change.down { color: var(--red); }
+  .change.flat { color: var(--text-dim); }
+  .metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 12px 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); margin-bottom: 12px; }
+  .metric-label { font-size: 10px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; }
+  .metric-value { font-size: 13px; font-weight: 500; margin-top: 2px; }
+  .consensus { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; padding: 8px; background: rgba(255,255,255,0.02); border-radius: 4px; }
+  .consensus-badge { padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; text-transform: uppercase; white-space: nowrap; }
+  .consensus-badge.buy { background: rgba(63, 185, 80, 0.15); color: var(--green); }
+  .consensus-badge.hold { background: rgba(210, 153, 34, 0.15); color: var(--amber); }
+  .consensus-badge.sell { background: rgba(248, 81, 73, 0.15); color: var(--red); }
+  .consensus-count { font-size: 11px; color: var(--text-dim); }
+  .news-title { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+  .news-item { display: block; color: var(--text); text-decoration: none; padding: 6px 0; font-size: 12px; line-height: 1.4; border-top: 1px solid rgba(255,255,255,0.04); }
+  .news-item:first-of-type { border-top: none; }
+  .news-item:hover { color: var(--blue); }
+  .news-date { color: var(--text-dim); font-size: 10px; margin-left: 4px; }
+  .na { color: var(--text-dim); font-style: italic; font-size: 12px; }
+  .config-prompt { background: var(--card); border: 1px solid var(--accent); padding: 20px; border-radius: 8px; margin-bottom: 24px; }
+  .config-prompt input { width: 100%; padding: 8px 12px; background: var(--bg); border: 1px solid var(--border); color: var(--text); border-radius: 4px; margin-top: 8px; font-family: monospace; font-size: 13px; }
+  .config-prompt button { margin-top: 12px; padding: 8px 16px; background: var(--accent); color: var(--bg); border: none; border-radius: 4px; cursor: pointer; font-weight: 600; }
+  .config-prompt a, .config-prompt code { color: var(--blue); }
+  .reset-btn { background: none; border: 1px solid var(--border); color: var(--text-dim); padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 11px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>Portfolio Live Dashboard</h1>
+    <div class="meta">
+      <span class="dot"></span>
+      Last update: <span id="last-update">—</span> · Refresh every 60s · Data: Yahoo Finance
+    </div>
+  </div>
+  <div><button class="reset-btn" onclick="resetProxy()">Change proxy URL</button></div>
+</header>
+
+<div id="config-prompt" class="config-prompt" style="display:none;">
+  <strong>One-time setup: paste your Cloudflare Worker URL</strong>
+  <p style="color:var(--text-dim);margin-top:8px;font-size:13px;line-height:1.5;">
+    Yahoo Finance blocks direct browser requests, so a tiny proxy is needed. Follow the setup steps shown by Claude — it takes about 5 minutes and is free. Then paste the worker URL below (looks like <code>https://yahoo-proxy.your-name.workers.dev</code>).
+  </p>
+  <input type="text" id="proxy-input" placeholder="https://yahoo-proxy.your-name.workers.dev">
+  <button onclick="saveProxy()">Save and load</button>
+</div>
+
+<div id="grid" class="grid">
+  <div style="grid-column: 1/-1; text-align: center; padding: 40px; color: var(--text-dim);">Loading portfolio data…</div>
+</div>
+
+<script>
+const PORTFOLIO = [
+  { name: 'Rheinmetall',           symbol: 'RHM.DE' },
+  { name: 'Rigetti Computing',     symbol: 'RGTI' },
+  { name: 'IonQ',                  symbol: 'IONQ' },
+  { name: 'D-Wave Quantum',        symbol: 'QBTS' },
+  { name: 'Eutelsat',              symbol: 'ETL.PA' },
+  { name: 'Thales',                symbol: 'HO.PA' },
+  { name: 'AeroVironment',         symbol: 'AVAV' },
+  { name: 'Kongsberg Gruppen',     symbol: 'KOG.OL' },
+  { name: 'Wallix',                symbol: 'ALLIX.PA' },
+  { name: 'Palo Alto Networks',    symbol: 'PANW' },
+  { name: 'CrowdStrike',           symbol: 'CRWD' },
+  { name: 'BWX Technologies',      symbol: 'BWXT' },
+  { name: 'nVent Electric',        symbol: 'NVT' },
+  { name: 'Schneider Electric',    symbol: 'SU.PA' },
+  { name: 'Leonardo',              symbol: 'LDO.MI' },
+  { name: 'Legrand',               symbol: 'LR.PA' },
+  { name: 'Exosens',               symbol: 'EXENS.PA' },
+  { name: 'Theon International',   symbol: 'THEON.AS' },
+  { name: 'TotalEnergies',         symbol: 'TTE.PA' },
+  { name: 'Lynas Rare Earths',     symbol: 'LYC.AX' },
+  { name: 'Orpheus Uranium',       symbol: 'ORP.AX' },
+  { name: 'Loyal Metals',          symbol: 'LLM.AX' },
+  { name: 'AML3D',                 symbol: 'AL3.AX' },
+  { name: 'Telix Pharmaceuticals', symbol: 'TLX.AX' },
+];
+
+const REFRESH_MS = 60_000;
+let PROXY_URL = localStorage.getItem('yahoo_proxy_url') || '';
+
+function saveProxy() {
+  let v = document.getElementById('proxy-input').value.trim();
+  if (!v) return;
+  v = v.replace(/\/$/, '');
+  localStorage.setItem('yahoo_proxy_url', v);
+  PROXY_URL = v;
+  document.getElementById('config-prompt').style.display = 'none';
+  loadAll();
+}
+function resetProxy() {
+  localStorage.removeItem('yahoo_proxy_url');
+  PROXY_URL = '';
+  document.getElementById('config-prompt').style.display = 'block';
+  document.getElementById('proxy-input').value = '';
+}
+
+async function yfetch(path) {
+  const r = await fetch(`${PROXY_URL}${path}`);
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r.json();
+}
+
+async function getQuoteSummary(symbol) {
+  const modules = ['price','summaryDetail','defaultKeyStatistics','financialData','recommendationTrend'].join(',');
+  const data = await yfetch(`/v10/finance/quoteSummary/${encodeURIComponent(symbol)}?modules=${modules}`);
+  return data?.quoteSummary?.result?.[0] || null;
+}
+async function getChart(symbol) {
+  const data = await yfetch(`/v8/finance/chart/${encodeURIComponent(symbol)}?range=5d&interval=1d`);
+  return data?.chart?.result?.[0] || null;
+}
+async function getNews(symbol) {
+  const data = await yfetch(`/news/rss?symbol=${encodeURIComponent(symbol)}`);
+  return data?.news || [];
+}
+async function getStockData(stock) {
+  const [summary, chart, news] = await Promise.allSettled([
+    getQuoteSummary(stock.symbol), getChart(stock.symbol), getNews(stock.symbol),
+  ]);
+  return {
+    stock,
+    summary: summary.status === 'fulfilled' ? summary.value : null,
+    chart: chart.status === 'fulfilled' ? chart.value : null,
+    news: news.status === 'fulfilled' ? news.value : [],
+  };
+}
+
+const CURRENCY_SYM = { USD:'$', EUR:'€', GBP:'£', GBp:'p', AUD:'A$', NOK:'kr ', CHF:'CHF ' };
+function fmtPrice(p, currency) {
+  if (p == null || isNaN(p)) return 'n/a';
+  const sym = CURRENCY_SYM[currency] || '';
+  return `${sym}${p.toFixed(2)}`;
+}
+function fmtPct(p) {
+  if (p == null || isNaN(p)) return 'n/a';
+  const sign = p > 0 ? '+' : '';
+  return `${sign}${p.toFixed(2)}%`;
+}
+function fmtRatio(r) {
+  if (r == null || isNaN(r)) return 'n/a';
+  return r.toFixed(1);
+}
+function changeClass(p) {
+  if (p == null || isNaN(p)) return 'flat';
+  if (p > 0.01) return 'up';
+  if (p < -0.01) return 'down';
+  return 'flat';
+}
+// Yahoo wraps values as {raw, fmt}; unwrap
+function v(x) {
+  if (x == null) return null;
+  if (typeof x === 'object' && 'raw' in x) return x.raw;
+  return typeof x === 'number' ? x : null;
+}
+
+function compute1WChange(chart) {
+  if (!chart?.indicators?.quote?.[0]?.close) return null;
+  const closes = chart.indicators.quote[0].close.filter(c => c != null);
+  if (closes.length < 2) return null;
+  return ((closes[closes.length - 1] - closes[0]) / closes[0]) * 100;
+}
+
+function renderConsensus(summary) {
+  const fd = summary?.financialData || {};
+  const recKey = fd.recommendationKey;
+  const recMean = v(fd.recommendationMean);
+  const numAnalysts = v(fd.numberOfAnalystOpinions);
+
+  if (!recKey && recMean == null) {
+    return '<div class="consensus"><span class="na">No analyst coverage</span></div>';
+  }
+
+  let label, cls;
+  if (recKey && recKey !== 'none') {
+    const k = String(recKey).toLowerCase();
+    if (k.includes('buy')) { label = k.replace('_',' '); cls = 'buy'; }
+    else if (k === 'hold') { label = 'Hold'; cls = 'hold'; }
+    else { label = k; cls = 'sell'; }
+  } else if (recMean != null) {
+    if (recMean <= 2.5) { label = 'Buy'; cls = 'buy'; }
+    else if (recMean <= 3.5) { label = 'Hold'; cls = 'hold'; }
+    else { label = 'Sell'; cls = 'sell'; }
+  } else {
+    label = 'N/A'; cls = 'hold';
+  }
+
+  const meanStr = recMean != null ? ` · ${recMean.toFixed(2)}/5` : '';
+  const countStr = (numAnalysts ? `${numAnalysts} analysts` : '') + meanStr;
+
+  return `<div class="consensus">
+      <span class="consensus-badge ${cls}">${label}</span>
+      <span class="consensus-count">${countStr || '—'}</span>
+    </div>`;
+}
+
+function renderNews(news) {
+  if (!news || !news.length) {
+    return '<div class="news-title">News</div><div class="na">No recent headlines</div>';
+  }
+  const items = news.slice(0, 3).map(n => {
+    const ts = n.providerPublishTime || n.pubDate;
+    let dateStr = '';
+    if (ts) {
+      const d = new Date(typeof ts === 'number' ? ts * 1000 : ts);
+      dateStr = `${d.getDate()}/${d.getMonth() + 1}`;
+    }
+    const title = n.title || '';
+    const headline = title.slice(0, 110) + (title.length > 110 ? '…' : '');
+    const url = n.link || '#';
+    return `<a class="news-item" href="${url}" target="_blank" rel="noopener">${headline}${dateStr ? `<span class="news-date">· ${dateStr}</span>` : ''}</a>`;
+  }).join('');
+  return `<div class="news-title">Latest News</div>${items}`;
+}
+
+function renderCard(data) {
+  const { stock, summary, chart, news } = data;
+  if (!summary) {
+    return `<div class="card">
+      <div class="card-header">
+        <div><div class="ticker-name">${stock.name}</div><div class="ticker-symbol">${stock.symbol}</div></div>
+        <div class="na">Data unavailable</div>
+      </div>
+    </div>`;
+  }
+
+  const price = summary.price || {};
+  const sd = summary.summaryDetail || {};
+  const ks = summary.defaultKeyStatistics || {};
+
+  const currency = price.currency || 'USD';
+  const cur = v(price.regularMarketPrice);
+  // Yahoo returns regularMarketChangePercent as already-in-percent (e.g. 1.23 for 1.23%)
+  const dayPct = v(price.regularMarketChangePercent);
+  const pe = v(sd.trailingPE) ?? v(ks.trailingPE);
+  const evEbitda = v(ks.enterpriseToEbitda);
+  const dayLow = v(price.regularMarketDayLow) ?? v(sd.dayLow);
+  const dayHigh = v(price.regularMarketDayHigh) ?? v(sd.dayHigh);
+  const weekPct = compute1WChange(chart);
+
+  return `<div class="card">
+    <div class="card-header">
+      <div>
+        <div class="ticker-name">${stock.name}</div>
+        <div class="ticker-symbol">${stock.symbol}</div>
+      </div>
+      <div>
+        <div class="price">${fmtPrice(cur, currency)}</div>
+        <div class="change ${changeClass(dayPct)}">${fmtPct(dayPct)} today</div>
+        <div class="change ${changeClass(weekPct)}" style="font-size:11px;">${fmtPct(weekPct)} 1W</div>
+      </div>
+    </div>
+    <div class="metrics">
+      <div><div class="metric-label">P/E (TTM)</div><div class="metric-value">${fmtRatio(pe)}</div></div>
+      <div><div class="metric-label">EV/EBITDA</div><div class="metric-value">${fmtRatio(evEbitda)}</div></div>
+      <div><div class="metric-label">Day Range</div><div class="metric-value">${dayLow != null && dayHigh != null ? dayLow.toFixed(2) + '–' + dayHigh.toFixed(2) : 'n/a'}</div></div>
+    </div>
+    ${renderConsensus(summary)}
+    ${renderNews(news)}
+  </div>`;
+}
+
+async function loadAll() {
+  if (!PROXY_URL) {
+    document.getElementById('config-prompt').style.display = 'block';
+    document.getElementById('grid').innerHTML = '';
+    return;
+  }
+
+  const grid = document.getElementById('grid');
+  grid.innerHTML = PORTFOLIO.map(s => `
+    <div class="card">
+      <div class="card-header">
+        <div><div class="ticker-name">${s.name}</div><div class="ticker-symbol">${s.symbol}</div></div>
+        <div class="na">Loading…</div>
+      </div>
+    </div>`).join('');
+
+  for (let i = 0; i < PORTFOLIO.length; i++) {
+    try {
+      const data = await getStockData(PORTFOLIO[i]);
+      const cards = grid.querySelectorAll('.card');
+      if (cards[i]) cards[i].outerHTML = renderCard(data);
+    } catch (e) {
+      console.error(PORTFOLIO[i].symbol, e);
+    }
+    await new Promise(r => setTimeout(r, 350));
+  }
+
+  document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
+}
+
+if (!PROXY_URL) {
+  document.getElementById('config-prompt').style.display = 'block';
+} else {
+  loadAll();
+}
+setInterval(() => { if (PROXY_URL) loadAll(); }, REFRESH_MS);
+</script>
+
+</body>
+</html>
